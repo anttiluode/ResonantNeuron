@@ -215,7 +215,7 @@ no term for that. Doing the honest physics made the result messier and more
 real at the same time: the wall exists, but its shape is set by the channel's
 own resonances, not a tidy formula.
 
-**(V13, missing from this repo but real) Nothing passive flows one way.** We
+**(V13) Nothing passive flows one way.** We
 tried four times to make a signal go in a preferred direction using geometry —
 a skewed angle, a periodic AIS-like lattice, a threshold relay, a refractory
 chain. **All four failed**, to five decimal places. A passive, linear,
