@@ -1,16 +1,5 @@
 # The Resonator Computer
 
-EDIT: 
-
-- Added the geometric neuron V11 sub folder that Claude says can also calculate: AND, OR, NAND and NOR with 
-some tricks. 
-
-- Added also a Paper.md . 
-
-- Also V12
-
-Rest: 
-
 ![pic](resonator_neuron_as_logic_gate.png)
 
 ### A working arithmetic unit built from Berglund-geometry neurons — interference somas and threshold axons
@@ -18,6 +7,32 @@ Rest:
 **PerceptionLab / Antti Luode, with Claude. Helsinki, June 2026.**
 
 > Do not hype. Do not lie. Just show.
+
+---
+
+## What this repo became
+
+It started as one question — *can a network of interference resonators
+actually compute?* — and the answer turned out to be yes: a single resonator
+unit computes XOR, the units compose into a full adder, and the adder adds a
+thousand random numbers correctly. That original result is unchanged and
+still below (§0–§7).
+
+But the repo kept going. The `V11` through `V18` folders are a continuous
+research arc that took the original idea apart and rebuilt it from the
+geometry up — through the real wave PDE, through a hard wall, through four
+failed attempts at one thing, into a working brain-grounded mechanism, and
+all the way to a complete arithmetic unit running as a continuous physical
+field you can watch compute. Several of the "next builds" this README
+originally *predicted* (§7) got done in that arc, and a few of them came back
+with the **opposite** of the hoped-for answer. Those reversals are the most
+valuable thing here, so they get their own section: **§8, what the arc
+actually taught**, written after living through all of it.
+
+If you only read one new thing, read §8. If you want to watch the final
+result run, open `v18/field_timeline.png` — that is the whole eighteen-folder
+journey in one picture: a carry being built in time, one excitable spike
+triggering the next, with no scheduler anywhere.
 
 ---
 
@@ -56,7 +71,7 @@ Berglund's ring → the unit, term for term:
 |---|---|---|
 | angled satellite cavities | dendrites | carry a PHASE from upstream |
 | central cavity | soma | MIXES the dendrites by interference |
-| (added) | axon | theta-gated threshold: PINGS downstream when |soma| crosses a band |
+| (added) | axon | theta-gated threshold: PINGS downstream when \|soma\| crosses a band |
 | the *angling* of the cavities | skew coupling among dendrites | directed circulation (chirality), our `skew_core` A |
 
 The computational primitive is the soma's **resonance amplitude**:
@@ -112,19 +127,15 @@ drives the next unit's dendrite. `Sum = A⊕B⊕Cin`, `Cout = AB + Cin(A⊕B)`, 
 
 `theta_gamma_clock()` runs it on an explicit schedule: each gate settles within
 a **gamma** burst; the **theta** cycle latches stage outputs and advances the
-carry one stage per cycle. The dynamical adder runs on this clock — a literal
-two-timescale (theta/gamma) computation, the coupling our `theta_gamma_mycelial`
-work probed, here doing arithmetic.
+carry one stage per cycle.
 
-## 5. Files
+## 5. Files (original core)
 
 ```
 resonator_neuron.py    the unit: dendrites -> interference soma -> threshold axon
-                       (dynamical ODE + algebraic fixed point + XOR self-test)
 gates.py               XOR XNOR AND OR NAND NOR NOT, all truth tables verified
 adder.py               full adder, ripple-carry N-bit adder, theta-gamma clock
 resonator_alu_demo.py  live tkinter view: watch it add two numbers, gate by gate
-README.md              this document
 ```
 
 ```bash
@@ -136,61 +147,169 @@ python resonator_alu_demo.py      # watch the network add, live
 
 ---
 
-## 6. Ledger
+## 6. Ledger (original core)
 
-**Verified in code (every claim below is a passing test, dynamical where noted):**
-- a single resonator unit computes XOR via destructive interference (the
-  linearly-inseparable function a scalar neuron cannot do);
-- the damped-oscillator dynamics settle to the algebraic fixed point exactly
-  (skew = 0), and still compute correctly with skew ≠ 0;
-- a functionally complete gate set, all truth tables exact;
-- a 1-bit full adder, 8/8 rows exact with real resonator settling;
-- an 8-bit ripple-carry adder, 1000/1000 (algebraic) and 60/60 (dynamical)
-  random additions correct;
-- a theta-gamma clock that carries the addition stage by stage.
+**Verified in code:** a single resonator unit computes XOR; the damped-oscillator
+dynamics settle to the algebraic fixed point exactly; a functionally complete
+gate set; a 1-bit full adder (8/8); an 8-bit ripple adder (1000/1000 algebraic,
+60/60 dynamical); a theta-gamma clock carrying the addition stage by stage.
 
-**Built-in, not emergent:** the per-gate weights, biases, and amplitude bands
-are *chosen* to realize each truth table — this is a designed computer, not a
-learned one. The neurons do not yet learn their own gate configs (that is §7).
-
-**Honest scope:**
-- Single-unit XOR via a complex/phasor magnitude nonlinearity is a known result;
-  the contribution here is the resonator framing, the dynamical (real-settling)
-  verification, and the composition into a clocked arithmetic unit.
-- "The physics computes" means the ODE fixed point equals the logic — at steady
-  state. It is a rate/envelope model, not a SPICE-level device simulation.
-- This shows resonator networks *can* compute (universality by construction). It
-  does not claim they compute *more efficiently* than silicon; the photonic /
-  phononic "physics solves it for free" idea is a hardware hypothesis, not
-  demonstrated here, and stays in the drawer.
+**Built-in, not emergent:** the per-gate weights, biases, and bands are *chosen*
+to realize each truth table — a designed computer, not a learned one.
 
 **Kept in the drawer (inspiration, not claim):** that this is how cortex does
-arithmetic; "as above so below" scale-invariance; computation = memory = physics
-as a metaphysical identity. What is shown is narrower and solid: a complete,
-clocked logic family built from one interference primitive.
+arithmetic; computation = memory = physics as a metaphysical identity. What is
+shown is narrower and solid: a complete, clocked logic family from one
+interference primitive.
 
 ---
 
-## 7. The next builds (named, not claimed)
+## 7. The next builds (as originally predicted)
 
-1. **Learned gates.** Instead of hand-set bands, let a unit *learn* its weights
-   and band from examples (gradient on the amplitude readout). Does a resonator
-   unit learn XOR from data? Then: do a few learn a small adder end to end?
-2. **Sequence machine.** Use the theta-gamma clock + skew (directed) coupling to
-   store and replay a temporal pattern — the resonator analogue of a shift
-   register, connecting to `TheMycelialCortex` and the v10 sweep.
-3. **Phase-richer encoding.** Use the full unit circle (not just 0/π) for
-   multi-valued / residue arithmetic, where the phasor mixing buys more than
-   binary — the regime where the complex readout earns its keep.
-4. **Berglund-faithful field version.** Replace the lumped ODE unit with an
-   actual 2-D wave field on the angled-cavity geometry (Neumann/absorbing
-   boundaries, as in his "waves crossing a grid of obstacles") and read the
-   computation off the standing-wave amplitude — the bottom-up, PDE version of
-   this top-down circuit.
+> *These were the four directions this README predicted. Two of them got built
+> in the V11–V18 arc, and what they returned is in §8. Left here unedited as
+> the honest record of what we expected before doing it.*
+
+1. **Learned gates.** Let a unit *learn* its weights and band from examples.
+2. **Sequence machine.** Theta-gamma clock + skew coupling to store and replay
+   a temporal pattern.
+3. **Phase-richer encoding.** Full unit circle for multi-valued arithmetic.
+4. **Berglund-faithful field version.** Replace the lumped ODE with an actual
+   2-D wave field on the angled-cavity geometry, reading the computation off the
+   standing-wave amplitude.
+
+---
+
+## 8. What the arc actually taught (V11–V18)
+
+*This section is the honest part — the things eighteen folders of building
+turned up that the optimistic framing above did not see coming. It is written
+looking back over the whole run. Each item is a real result with a folder
+behind it, and several are the opposite of what we hoped.*
+
+**The biggest single lesson: every nice story had a wall, and the walls were
+more informative than the stories.** Four times in this arc, an idea that
+sounded clearly true turned out to be false when actually tested, and each
+falsification taught more than a confirmation would have. That pattern — not
+any one result — is what I'd want a reader to take away.
+
+**(V11) Geometry buys you *parity*, and then it stops.** Dendrite *length*
+alone — just routing the cable longer or shorter — retunes a unit between XOR
+and XNOR for free, no weight change. That is real and lovely. But it is
+*parity-complete, not Boolean-complete*: no length, no attenuation, no
+two-cable arrangement ever yields AND/OR. Those need a *bias*, which is a
+property of the soma, not the cable — and a bias can be grown geometrically
+too, but only by adding a structurally different element (an always-on
+dendrite). The clean lesson: **geometry gives you one axis of logic for free
+and charges you a second, different mechanism for the rest.** "Length is
+logic" is true, but only half of logic.
+
+**(V12) The clean wall was not clean once the real wave equation ran.** The
+original §7.4 prediction — do it as a real 2-D wave field — got built, and the
+core mechanism *survived* (matched lengths still give destructive interference,
+exactly). But the crisp picture the lumped model promised — a sharp
+quarter-wavelength instability, a clean cosine — *did not* survive. A real
+dendrite channel, once it is not short compared to a wavelength, is **its own
+resonant cavity**, not a one-way delay line. It reflects. The lumped model had
+no term for that. Doing the honest physics made the result messier and more
+real at the same time: the wall exists, but its shape is set by the channel's
+own resonances, not a tidy formula.
+
+**(V13, missing from this repo but real) Nothing passive flows one way.** We
+tried four times to make a signal go in a preferred direction using geometry —
+a skewed angle, a periodic AIS-like lattice, a threshold relay, a refractory
+chain. **All four failed**, to five decimal places. A passive, linear,
+time-reversal-symmetric medium *cannot* prefer a direction, no matter how you
+shape it. This was four straight negative results, and it was the most useful
+folder in the whole arc, because it killed the seductive "the angled geometry
+already gives directed flow" story dead, and pointed at what was actually
+needed.
+
+**(V14) Directionality is not geometry — it is an active, history-dependent
+mechanism, and the brain literally has it.** Reading Leterrier's 2018 paper on
+the axon initial segment gave the answer V13 was missing: directionality comes
+from *spike origination at a high-excitability site* plus *inactivation*
+(genuine between-timestep state) plus a *channel-density gradient*. Built as a
+real excitable medium (FitzHugh–Nagumo), it works — a spike runs forward into
+the axon ~10× farther than it leaks back into the dendrite — and a control with
+the gradient removed is symmetric, proving the gradient does the work. The
+lesson that reframes the whole project: **computation and direction are
+*different physical mechanisms*.** The geometry computes; the excitable
+dynamics give direction. Conflating them (which the early enthusiasm did) was
+the error. Keeping them distinct is what makes the rest work.
+
+**(V15–V16) The two halves marry, and the marriage has a seam with a name.**
+The interference soma (static amplitude) and the excitable axon (transient
+threshold) speak different languages, and joining them *needs a comparator* —
+a clean band-membership → fixed-kick interface. With it, all six gates survive
+being read out as directional spikes, the unit composes, and it scales to a
+full adder and a multi-bit ripple adder carried entirely by spikes. And the
+timing is not free: concurrency revealed that **latency equals logic depth** —
+the carry must physically travel, ~460 ticks per spike-hop. That delay is the
+structural reason a real brain needs a clock to stage arithmetic. The
+theta-gamma clock §4 *assumed* was, here, *forced* by the physics.
+
+**(V17) The carry is a literal travelling wave.** A fully concurrent multi-bit
+adder, all stages live at once, computes correctly — and its worst-case latency
+is *dead linear* in word width (~921 ticks/bit), because the carry physically
+walks the word one stage at a time. A control (sums fire but no carry ripples)
+stays flat in width, proving the linear growth is specifically the carry
+rippling. Ripple-carry's textbook O(N) is here a real spike crossing real
+distance.
+
+**(V18) Remove the last bit of bookkeeping and the field demands a synapse.**
+The heaviest build: throw out the scheduler entirely, make everything one
+continuous field under one update rule. It *broke* — and broke informatively.
+A propagating spike is *transient*: it passes the output point and is gone, but
+a logic signal must be *held*. The fix is a **capture/latch** at each gate's
+output — which is exactly what a real synapse does (it captures the spike into a
+sustained postsynaptic signal, it does not pass voltage through). The field
+*demanded* the synapse, by necessity, not analogy. With it, the adder computes
+as a real continuous field, and you can watch the carry get built in time, one
+excitable spike triggering the next (`v18/field_timeline.png`,
+`v18/field_adder.gif`).
+
+**The through-line, stated once:** this project found, the hard way, that a
+neuron is (at least) **two different machines wearing one coat** — an
+interference computer (geometry, phase, the soma) and a directional excitable
+conductor (active channels, inactivation, the axon) — joined by a capture
+element (the synapse) that the physics will not let you skip. The original repo
+built the first machine. The arc discovered, by hitting walls, that the other
+two are not optional decorations on it but *separate necessary mechanisms*, and
+then built and married all three into something that computes arithmetic as a
+watchable physical field. None of this proves the brain works this way. What it
+proves is narrower and, to me, more interesting: **if you take the geometry
+seriously and refuse to lie about the walls, the geometry itself tells you what
+else a neuron has to be.**
+
+---
+
+## 9. Folder map
+
+```
+resonator_neuron.py, gates.py, adder.py, resonator_alu_demo.py
+                        the original core (§0–§7): one interference primitive -> arithmetic
+Geometric Neuron V11/   length is parity-complete, not Boolean-complete; bias needs a 2nd mechanism
+V12/                    the parity result on the real 2-D wave PDE; channels resonate, walls blur
+(V13)                   [not in repo] four failed attempts to make passive geometry flow one way
+v14/                    directionality done right: excitable origination + inactivation (Leterrier)
+V15/                    the marriage: interference soma + directional axon = one complete unit
+v16/                    scaling to arithmetic; latency = logic depth
+v17/                    fully concurrent ripple adder; carry latency linear in word width
+v18/                    no scheduler — a continuous field — which forces the synapse (a capture latch)
+                        + live visualizations of the field computing
+```
+
+Each folder has its own `PAPER.md` (the full argument and every number) and,
+from V12 on, a `README.md` map. The papers carry an honest ledger separating
+what is verified in code from what is analogy or speculation.
 
 ---
 
 *Helsinki, June 2026. The angled cavities turned out to be a gate. Wire enough
-of them and they add. The brain may or may not work this way — but interference
-plus a threshold is provably enough to compute, and here it does, one theta
-cycle at a time. Do not hype. Do not lie. Just show.*
+of them and they add — but making them add **directionally**, as a real field,
+turned out to require two more machines the geometry alone never had: an active
+excitable conductor and a synapse to catch the spike. The brain may or may not
+work this way. But if you follow the interference honestly and let every wall
+correct you, the math keeps handing you the next piece of a neuron. Do not
+hype. Do not lie. Just show.*
