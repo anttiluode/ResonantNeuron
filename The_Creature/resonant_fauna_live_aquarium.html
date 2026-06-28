@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resonant Fauna - Cybernetic Aquarium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0f172a; color: #e2e8f0; font-family: monospace; }
+        #canvas-container { position: relative; width: 100%; height: 100vh; display: flex; }
+        canvas { background-color: #020617; border-right: 1px solid #334155; }
+        #dashboard { flex: 1; padding: 20px; overflow-y: auto; background: #0f172a; display: flex; flex-direction: column; gap: 16px; }
+        .bar-container { width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; transition: width 0.1s linear; }
+        .node-box { background: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; }
+        .pulse-circle { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <canvas id="worldCanvas" width="800" height="800"></canvas>
+    
+    <div id="dashboard">
+        <div>
+            <h1 class="text-2xl font-bold text-cyan-400 mb-2">Resonant Fauna</h1>
+            <p class="text-sm text-slate-400">Cybernetic Aquarium • v18 Architecture</p>
+            <p class="text-xs text-slate-500 mt-2"><b>Left Click:</b> Drop Food <br><b>Right Click + Drag:</b> Draw Walls</p>
+            <div class="mt-4 flex gap-4">
+                <button onclick="engine.spawnCreature()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm border border-slate-600">Spawn Creature</button>
+                <button onclick="engine.clearWalls()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm border border-slate-600">Clear Walls</button>
+            </div>
+            
+            <div class="mt-4 flex justify-between text-sm">
+                <span>Population: <span id="pop-count" class="text-white">0</span></span>
+                <span>Food: <span id="food-count" class="text-white">0</span></span>
+            </div>
+        </div>
+
+        <div id="brain-dashboard" class="hidden flex-col gap-4">
+            <h2 class="text-lg font-bold text-violet-400 mt-4 border-b border-slate-700 pb-2">Subject Brain State</h2>
+            
+            <!-- Sensors -->
+            <div class="node-box">
+                <h3 class="text-xs text-slate-400 mb-2 uppercase">Continuous Sensors</h3>
+                <div class="flex flex-col gap-2 text-xs">
+                    <div class="flex justify-between items-center">
+                        <span class="w-16">Smell L</span>
+                        <div class="bar-container"><div id="smell-l" class="bar-fill bg-emerald-400" style="width: 0%"></div></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="w-16">Smell R</span>
+                        <div class="bar-container"><div id="smell-r" class="bar-fill bg-emerald-400" style="width: 0%"></div></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="w-16">Ray L</span>
+                        <div class="bar-container"><div id="ray-l" class="bar-fill bg-rose-400" style="width: 0%"></div></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="w-16">Ray C</span>
+                        <div class="bar-container"><div id="ray-c" class="bar-fill bg-rose-400" style="width: 0%"></div></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="w-16">Ray R</span>
+                        <div class="bar-container"><div id="ray-r" class="bar-fill bg-rose-400" style="width: 0%"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resonator Gates -->
+            <div class="node-box">
+                <h3 class="text-xs text-slate-400 mb-2 uppercase">Interference Somas (Logic)</h3>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="flex items-center"><span id="gate-pursue" class="pulse-circle bg-slate-600"></span> Pursue (OR)</div>
+                    <div class="flex items-center"><span id="gate-eat" class="pulse-circle bg-slate-600"></span> Eat (AND)</div>
+                    <div class="flex items-center"><span id="gate-avoid-l" class="pulse-circle bg-slate-600"></span> Avoid L (XOR)</div>
+                    <div class="flex items-center"><span id="gate-avoid-r" class="pulse-circle bg-slate-600"></span> Avoid R (XOR)</div>
+                    <div class="flex items-center"><span id="gate-collide" class="pulse-circle bg-slate-600"></span> Collide (AND)</div>
+                </div>
+            </div>
+
+            <!-- Synaptic Latches -->
+            <div class="node-box">
+                <h3 class="text-xs text-slate-400 mb-2 uppercase">Synaptic Latches (Memory)</h3>
+                <div class="flex flex-col gap-2 text-xs">
+                    <div class="flex justify-between items-center">
+                        <span class="w-16">Pursue</span>
+                        <div class="bar-container"><div id="latch-pursue" class="bar-fill bg-violet-400" style="width: 0%"></div></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="w-16">Turn L</span>
+                        <div class="bar-container"><div id="latch-turn-l" class="bar-fill bg-rose-400" style="width: 0%"></div></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="w-16">Turn R</span>
+                        <div class="bar-container"><div id="latch-turn-r" class="bar-fill bg-rose-400" style="width: 0%"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CPG -->
+            <div class="node-box">
+                <h3 class="text-xs text-slate-400 mb-2 uppercase">Motor CPG (Oscillators)</h3>
+                <div class="flex gap-4 justify-center items-end h-16 border-b border-slate-700 pb-2">
+                    <div class="flex flex-col items-center gap-1">
+                        <div id="cpg-l" class="w-8 bg-cyan-400 rounded-t" style="height: 0px"></div>
+                        <span class="text-xs">Left</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1">
+                        <div id="cpg-r" class="w-8 bg-cyan-400 rounded-t" style="height: 0px"></div>
+                        <span class="text-xs">Right</span>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-center text-slate-400">Energy: <span id="energy-val" class="text-white">1.0</span> / 2.0</div>
+            </div>
+        </div>
+        
+        <div id="no-subject" class="text-center text-slate-500 mt-20 italic">
+            Click a creature to view brain state.
+        </div>
+    </div>
+</div>
+
+<script>
+// --- V18 Math Core: Phasor Encoding & Interference ---
+function encode(b) {
+    // 0 -> +1, 1 -> -1. Treat as real axis of complex plane.
+    return (b > 0.5) ? -1.0 : 1.0; 
+}
+
+function get_amplitude(inputs, bias) {
+    let sum = bias;
+    for(let i of inputs) {
+        sum += encode(i);
+    }
+    return Math.abs(sum);
+}
+
+function gate(kind, ...inputs) {
+    let amp;
+    // Bands tuned directly from Python v18 tests
+    if (kind === 'XOR') {
+        amp = get_amplitude(inputs, 0.0);
+        return (amp >= -0.1 && amp <= 0.5) ? 1.0 : 0.0;
+    }
+    if (kind === 'AND') {
+        amp = get_amplitude(inputs, -1.0);
+        return (amp >= 2.5 && amp <= 3.5) ? 1.0 : 0.0;
+    }
+    if (kind === 'OR') {
+        amp = get_amplitude(inputs, 1.0);
+        return (amp >= 0.5 && amp <= 1.5) ? 1.0 : 0.0;
+    }
+    if (kind === 'NOT') {
+        amp = get_amplitude(inputs, 1.0);
+        return (amp >= -0.1 && amp <= 0.5) ? 1.0 : 0.0;
+    }
+    return 0.0;
+}
+
+// --- Vector Math ---
+class Vec2 {
+    constructor(x, y) { this.x = x; this.y = y; }
+    add(v) { return new Vec2(this.x + v.x, this.y + v.y); }
+    sub(v) { return new Vec2(this.x - v.x, this.y - v.y); }
+    mag() { return Math.sqrt(this.x*this.x + this.y*this.y); }
+    norm() { let m = this.mag(); return m===0 ? new Vec2(0,0) : new Vec2(this.x/m, this.y/m); }
+    dot(v) { return this.x*v.x + this.y*v.y; }
+}
+
+// --- World Entities ---
+class Food {
+    constructor(x, y) {
+        this.pos = new Vec2(x, y);
+        this.energy = 0.4;
+    }
+    draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.pos.x, this.pos.y, 4, 0, Math.PI*2);
+        ctx.fillStyle = '#10b981'; // Emerald
+        ctx.fill();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#10b981';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+}
+
+class Wall {
+    constructor(x1, y1, x2, y2) {
+        this.p1 = new Vec2(x1, y1);
+        this.p2 = new Vec2(x2, y2);
+    }
+    draw(ctx) {
+        ctx.beginPath();
+        ctx.moveTo(this.p1.x, this.p1.y);
+        ctx.lineTo(this.p2.x, this.p2.y);
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+    }
+}
+
+class Creature {
+    constructor(x, y) {
+        this.pos = new Vec2(x, y);
+        this.heading = Math.random() * Math.PI * 2;
+        this.energy = 1.0;
+        this.age = 0;
+        
+        // Sensor State
+        this.sensors = { smellL: 0, smellR: 0, rayL: 0, rayC: 0, rayR: 0, hungry: 0 };
+        this.prev_smell = 0;
+        
+        // Gates
+        this.gates = { pursue: 0, eat: 0, avoidL: 0, avoidR: 0, collide: 0 };
+        
+        // Latches (Synapses)
+        this.latches = { pursue: 0, avoidL: 0, avoidR: 0, eat: 0 };
+        
+        // CPG: Simple, stable phase-based oscillator
+        this.phase = Math.random() * Math.PI * 2;
+        this.cpg = { L: 0, R: 0 }; // Keeps dashboard compatible
+        this.turn_commit = null; // State for head-on collision arbitration
+        
+        this.scale = 30.0; // 1 unit = 30 px
+    }
+
+    sense(world) {
+        // Hunger
+        this.sensors.hungry = (this.energy < 1.5) ? 1.0 : 0.0;
+
+        // Smell (Food)
+        let left_pos = new Vec2(this.pos.x + Math.cos(this.heading - 0.5)*15, this.pos.y + Math.sin(this.heading - 0.5)*15);
+        let right_pos = new Vec2(this.pos.x + Math.cos(this.heading + 0.5)*15, this.pos.y + Math.sin(this.heading + 0.5)*15);
+        
+        let min_dL = Infinity;
+        let min_dR = Infinity;
+        let sL = 0, sR = 0;
+        
+        for(let f of world.foods) {
+            let dL = left_pos.sub(f.pos).mag() / this.scale;
+            let dR = right_pos.sub(f.pos).mag() / this.scale;
+            
+            if (dL < min_dL) min_dL = dL;
+            if (dR < min_dR) min_dR = dR;
+            
+            // Broad weak drift (glow) across all food
+            sL += 0.01 * Math.exp(-dL / 5.0);
+            sR += 0.01 * Math.exp(-dR / 5.0);
+        }
+        
+        // Non-saturating sharp gradient for closest food
+        if (min_dL < Infinity) sL += 0.8 * Math.exp(-min_dL / 1.0);
+        if (min_dR < Infinity) sR += 0.8 * Math.exp(-min_dR / 1.0);
+        
+        this.sensors.smellL = Math.min(1.0, sL);
+        this.sensors.smellR = Math.min(1.0, sR);
+
+        // Raycasting (Walls)
+        const ray_dist = 1.5 * this.scale;
+        this.sensors.rayL = this.cast_ray(world, this.heading - Math.PI/4, ray_dist);
+        this.sensors.rayC = this.cast_ray(world, this.heading, ray_dist);
+        this.sensors.rayR = this.cast_ray(world, this.heading + Math.PI/4, ray_dist);
+    }
+
+    cast_ray(world, angle, max_dist) {
+        let dir = new Vec2(Math.cos(angle), Math.sin(angle));
+        let closest = 1.0; // 1.0 = clear, 0.0 = hit instantly
+        
+        let p3 = this.pos;
+        let p4 = this.pos.add(new Vec2(dir.x * max_dist, dir.y * max_dist));
+
+        // Screen borders
+        const bounds = [
+            new Wall(0,0, 800,0), new Wall(800,0, 800,800),
+            new Wall(800,800, 0,800), new Wall(0,800, 0,0)
+        ];
+        
+        let all_walls = world.walls.concat(bounds);
+
+        for (let w of all_walls) {
+            // Line intersection
+            let x1 = w.p1.x, y1 = w.p1.y, x2 = w.p2.x, y2 = w.p2.y;
+            let x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
+            
+            let den = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+            if (den === 0) continue;
+            
+            let t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / den;
+            let u = -((x1-x2)*(y1-y3) - (y1-y2)*(x1-x3)) / den;
+            
+            if (t > 0 && t < 1 && u > 0 && u < 1) {
+                if (u < closest) closest = u;
+            }
+        }
+        
+        return 1.0 - closest; // 0 = clear, 1 = hit
+    }
+
+    brain_step() {
+        // Bit thresholding for pure logic gates
+        let bSmellL = this.sensors.smellL > 0.15 ? 1.0 : 0.0;
+        let bSmellR = this.sensors.smellR > 0.15 ? 1.0 : 0.0;
+        let bFood = (bSmellL || bSmellR) ? 1.0 : 0.0;
+        
+        let bRayL = this.sensors.rayL > 0.4 ? 1.0 : 0.0;
+        let bRayC = this.sensors.rayC > 0.4 ? 1.0 : 0.0;
+        let bRayR = this.sensors.rayR > 0.4 ? 1.0 : 0.0;
+
+        // Interference Logic Somas
+        this.gates.pursue = gate('OR', bFood, bFood);
+        this.gates.eat = gate('AND', this.sensors.hungry, bFood);
+        
+        this.gates.avoidL = gate('AND', bRayL, gate('NOT', bRayR));
+        this.gates.avoidR = gate('AND', bRayR, gate('NOT', bRayL));
+        this.gates.collide = gate('AND', bRayC, bRayC);
+
+        // Head-on crash arbitration (Persistent commitment to avoid stutter)
+        if (bRayC && bRayL && bRayR) {
+            if (!this.turn_commit) this.turn_commit = Math.random() > 0.5 ? 'L' : 'R';
+            if (this.turn_commit === 'L') this.gates.avoidL = 1.0;
+            else this.gates.avoidR = 1.0;
+        } else {
+            this.turn_commit = null;
+        }
+        
+        if (this.gates.collide) {
+            this.gates.avoidL = 1.0; // Panic turn
+        }
+
+        // Synaptic Latches (Leaky Integrators)
+        if (this.gates.pursue) this.latches.pursue = 1.0;
+        if (this.gates.avoidL) this.latches.avoidL = 1.0;
+        if (this.gates.avoidR) this.latches.avoidR = 1.0;
+        if (this.gates.eat) this.latches.eat = 1.0;
+
+        // Slower avoidance decay to produce smooth, non-stuttering turns
+        this.latches.pursue *= 0.95;
+        this.latches.avoidL *= 0.90;
+        this.latches.avoidR *= 0.90;
+        this.latches.eat *= 0.80;
+    }
+
+    move(world) {
+        let dt = 0.2;
+        
+        // 1. Softened Modulation from latches (penalty lowered from 2.5 to 1.2)
+        let driveL = 1.0 + (this.latches.pursue * 0.5) - (this.latches.avoidL * 1.2);
+        let driveR = 1.0 + (this.latches.pursue * 0.5) - (this.latches.avoidR * 1.2);
+
+        // 2. Continuous Proportional Chemotaxis
+        let diff = this.sensors.smellL - this.sensors.smellR;
+        let chemo_turn = diff * 0.5; // Always apply weak drift
+        if (this.latches.pursue > 0.1) {
+            chemo_turn = diff * 2.0; // Strong gradient following when close
+        }
+        driveR += chemo_turn;
+        driveL -= chemo_turn;
+
+        // 3. Stable Phase-Based CPG
+        this.phase += 0.35 * dt;
+        
+        // Base rhythmic oscillation
+        let oscL = Math.sin(this.phase);
+        let oscR = Math.sin(this.phase + Math.PI); // Anti-phase
+        
+        // Sum brain modulation with oscillator rhythm
+        let outL = Math.max(0, oscL + driveL);
+        let outR = Math.max(0, oscR + driveR);
+        
+        // Save to CPG object for Dashboard UI tracking
+        this.cpg.L = outL;
+        this.cpg.R = outR;
+
+        // Motor output
+        let thrust = 0.5 * (outL + outR);
+        let turn = outL - outR;
+
+        // Apply kinematics (damped to prevent spinning)
+        let turn_clamped = Math.max(-0.5, Math.min(0.5, turn * 0.15));
+        this.heading += turn_clamped;
+        
+        let speed = thrust * 2.0; // pixel speed
+        
+        // Prevent backing up
+        if (speed < 0) speed = 0;
+
+        let dx = Math.cos(this.heading) * speed;
+        let dy = Math.sin(this.heading) * speed;
+
+        // Collision check physically
+        let newPos = this.pos.add(new Vec2(dx, dy));
+        if (newPos.x > 10 && newPos.x < 790 && newPos.y > 10 && newPos.y < 790) {
+            this.pos = newPos;
+        } else {
+            // Bonk penalty (softened from 0.02 to 0.005)
+            this.energy -= 0.005;
+        }
+
+        // Metabolism (softened base drain)
+        this.energy -= 0.001 + (speed * 0.0002);
+        this.age += 1;
+
+        // Eating
+        if (this.latches.eat > 0.5) {
+            for (let i = world.foods.length - 1; i >= 0; i--) {
+                let f = world.foods[i];
+                if (this.pos.sub(f.pos).mag() < 15.0) {
+                    this.energy = Math.min(2.0, this.energy + f.energy);
+                    world.foods.splice(i, 1);
+                }
+            }
+        }
+    }
+
+    draw(ctx, isSelected) {
+        ctx.save();
+        ctx.translate(this.pos.x, this.pos.y);
+        ctx.rotate(this.heading);
+
+        // Body
+        ctx.beginPath();
+        ctx.moveTo(12, 0);
+        ctx.lineTo(-8, 8);
+        ctx.lineTo(-8, -8);
+        ctx.closePath();
+        
+        // Color based on energy and selection
+        let hue = 190; // cyan
+        let sat = 100;
+        let lit = Math.max(20, Math.min(80, this.energy * 40));
+        ctx.fillStyle = `hsl(${hue}, ${sat}%, ${lit}%)`;
+        if (isSelected) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#22d3ee';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        ctx.fill();
+
+        // Draw CPG pulses
+        let outL = Math.max(0, this.cpg.L) * 3;
+        let outR = Math.max(0, this.cpg.R) * 3;
+        
+        ctx.beginPath(); ctx.arc(0, -6, outL, 0, Math.PI*2); ctx.fillStyle = 'rgba(0, 255, 255, 0.5)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 6, outR, 0, Math.PI*2); ctx.fillStyle = 'rgba(0, 255, 255, 0.5)'; ctx.fill();
+
+        ctx.restore();
+
+        // Draw rays if selected
+        if (isSelected) {
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.2)';
+            ctx.lineWidth = 1;
+            let rayDist = 1.5 * this.scale;
+            [-Math.PI/4, 0, Math.PI/4].forEach(angle => {
+                let rDir = this.heading + angle;
+                ctx.beginPath();
+                ctx.moveTo(this.pos.x, this.pos.y);
+                ctx.lineTo(this.pos.x + Math.cos(rDir)*rayDist, this.pos.y + Math.sin(rDir)*rayDist);
+                ctx.stroke();
+            });
+        }
+    }
+}
+
+// --- Engine ---
+class Engine {
+    constructor() {
+        this.canvas = document.getElementById('worldCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        
+        this.world = {
+            creatures: [],
+            foods: [],
+            walls: []
+        };
+        
+        this.selectedCreature = null;
+        this.isDrawingWall = false;
+        this.wallStart = null;
+        
+        this.setupEvents();
+        
+        // Initial Population
+        for(let i=0; i<10; i++) this.spawnCreature();
+        for(let i=0; i<20; i++) this.spawnFood();
+
+        this.loop();
+    }
+    
+    spawnCreature() {
+        let x = 50 + Math.random() * 700;
+        let y = 50 + Math.random() * 700;
+        this.world.creatures.push(new Creature(x, y));
+    }
+    
+    spawnFood() {
+        let x = 20 + Math.random() * 760;
+        let y = 20 + Math.random() * 760;
+        this.world.foods.push(new Food(x, y));
+    }
+
+    clearWalls() {
+        this.world.walls = [];
+    }
+    
+    setupEvents() {
+        this.canvas.addEventListener('mousedown', (e) => {
+            let rect = this.canvas.getBoundingClientRect();
+            let x = e.clientX - rect.left;
+            let y = e.clientY - rect.top;
+            
+            if (e.button === 2 || e.shiftKey) {
+                // Right click or shift-click: Draw Wall
+                this.isDrawingWall = true;
+                this.wallStart = new Vec2(x, y);
+            } else {
+                // Left click: Drop Food or Select Creature
+                let clickedCreature = null;
+                for (let c of this.world.creatures) {
+                    if (c.pos.sub(new Vec2(x, y)).mag() < 20) {
+                        clickedCreature = c;
+                        break;
+                    }
+                }
+                if (clickedCreature) {
+                    this.selectedCreature = clickedCreature;
+                } else {
+                    this.world.foods.push(new Food(x, y));
+                }
+            }
+        });
+        
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (this.isDrawingWall && this.wallStart) {
+                let rect = this.canvas.getBoundingClientRect();
+                this.tempWallEnd = new Vec2(e.clientX - rect.left, e.clientY - rect.top);
+            }
+        });
+
+        this.canvas.addEventListener('mouseup', (e) => {
+            if (this.isDrawingWall && this.wallStart && this.tempWallEnd) {
+                let rect = this.canvas.getBoundingClientRect();
+                let end = new Vec2(e.clientX - rect.left, e.clientY - rect.top);
+                if (this.wallStart.sub(end).mag() > 10) {
+                    this.world.walls.push(new Wall(this.wallStart.x, this.wallStart.y, end.x, end.y));
+                }
+            }
+            this.isDrawingWall = false;
+            this.wallStart = null;
+            this.tempWallEnd = null;
+        });
+
+        this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+    }
+    
+    updateDashboard() {
+        document.getElementById('pop-count').innerText = this.world.creatures.length;
+        document.getElementById('food-count').innerText = this.world.foods.length;
+        
+        if (!this.selectedCreature || this.world.creatures.indexOf(this.selectedCreature) === -1) {
+            if (this.world.creatures.length > 0) this.selectedCreature = this.world.creatures[0];
+            else {
+                document.getElementById('brain-dashboard').classList.add('hidden');
+                document.getElementById('no-subject').classList.remove('hidden');
+                return;
+            }
+        }
+        
+        let c = this.selectedCreature;
+        document.getElementById('brain-dashboard').classList.remove('hidden');
+        document.getElementById('no-subject').classList.add('hidden');
+        
+        // Update Sensor Bars
+        document.getElementById('smell-l').style.width = `${c.sensors.smellL * 100}%`;
+        document.getElementById('smell-r').style.width = `${c.sensors.smellR * 100}%`;
+        document.getElementById('ray-l').style.width = `${c.sensors.rayL * 100}%`;
+        document.getElementById('ray-c').style.width = `${c.sensors.rayC * 100}%`;
+        document.getElementById('ray-r').style.width = `${c.sensors.rayR * 100}%`;
+        
+        // Update Gates
+        const activeGate = "pulse-circle bg-emerald-400 shadow-[0_0_8px_#34d399]";
+        const inactiveGate = "pulse-circle bg-slate-700";
+        document.getElementById('gate-pursue').className = c.gates.pursue ? activeGate : inactiveGate;
+        document.getElementById('gate-eat').className = c.gates.eat ? activeGate : inactiveGate;
+        document.getElementById('gate-avoid-l').className = c.gates.avoidL ? activeGate : inactiveGate;
+        document.getElementById('gate-avoid-r').className = c.gates.avoidR ? activeGate : inactiveGate;
+        document.getElementById('gate-collide').className = c.gates.collide ? activeGate : inactiveGate;
+        
+        // Update Latches
+        document.getElementById('latch-pursue').style.width = `${c.latches.pursue * 100}%`;
+        document.getElementById('latch-turn-l').style.width = `${c.latches.avoidL * 100}%`;
+        document.getElementById('latch-turn-r').style.width = `${c.latches.avoidR * 100}%`;
+        
+        // Update CPG
+        let hL = Math.max(0, c.cpg.L) * 20;
+        let hR = Math.max(0, c.cpg.R) * 20;
+        document.getElementById('cpg-l').style.height = `${hL}px`;
+        document.getElementById('cpg-r').style.height = `${hR}px`;
+        
+        // Update Energy
+        document.getElementById('energy-val').innerText = c.energy.toFixed(2);
+    }
+    
+    loop() {
+        // Clear
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Autospawn food
+        if (Math.random() < 0.05 && this.world.foods.length < 40) {
+            this.spawnFood();
+        }
+
+        // Draw Temp Wall
+        if (this.isDrawingWall && this.wallStart && this.tempWallEnd) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.wallStart.x, this.wallStart.y);
+            this.ctx.lineTo(this.tempWallEnd.x, this.tempWallEnd.y);
+            this.ctx.strokeStyle = 'rgba(100, 116, 139, 0.5)';
+            this.ctx.lineWidth = 4;
+            this.ctx.lineCap = 'round';
+            this.ctx.stroke();
+        }
+
+        // Draw Walls
+        for (let w of this.world.walls) w.draw(this.ctx);
+        
+        // Draw Food
+        for (let f of this.world.foods) f.draw(this.ctx);
+        
+        // Update & Draw Creatures
+        for (let i = this.world.creatures.length - 1; i >= 0; i--) {
+            let c = this.world.creatures[i];
+            
+            c.sense(this.world);
+            c.brain_step();
+            c.move(this.world);
+            
+            // Death
+            if (c.energy <= 0) {
+                this.world.creatures.splice(i, 1);
+                continue;
+            }
+            
+            // Reproduction
+            if (c.energy > 1.8) {
+                c.energy = 0.9;
+                let child = new Creature(c.pos.x, c.pos.y);
+                child.heading = c.heading + Math.PI;
+                this.world.creatures.push(child);
+            }
+            
+            c.draw(this.ctx, c === this.selectedCreature);
+        }
+        
+        this.updateDashboard();
+        
+        requestAnimationFrame(() => this.loop());
+    }
+}
+
+// Start
+const engine = new Engine();
+
+</script>
+</body>
+</html>
