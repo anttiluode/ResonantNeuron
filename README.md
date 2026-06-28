@@ -1,9 +1,15 @@
 # The Resonator Computer
 
-Added the geometric neuron V11 sub folder that Claude says can also calculate: AND, OR, NAND and NOR with 
+EDIT: 
+
+- Added the geometric neuron V11 sub folder that Claude says can also calculate: AND, OR, NAND and NOR with 
 some tricks. 
 
-Added also a Paper.md . 
+- Added also a Paper.md . 
+
+- Also V12
+
+Rest: 
 
 ![pic](resonator_neuron_as_logic_gate.png)
 
