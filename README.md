@@ -1,5 +1,7 @@
 # The Resonator Computer
 
+![pic](resonator_neuron_as_logic_gate.png)
+
 ### A working arithmetic unit built from Berglund-geometry neurons — interference somas and threshold axons
 
 **PerceptionLab / Antti Luode, with Claude. Helsinki, June 2026.**
