@@ -1,5 +1,7 @@
 # The Resonator Computer
 
+Added the geometric neuron V11 sub folder that Claude says can also calculate: AND, OR, NAND and NOR. 
+
 ![pic](resonator_neuron_as_logic_gate.png)
 
 ### A working arithmetic unit built from Berglund-geometry neurons — interference somas and threshold axons
