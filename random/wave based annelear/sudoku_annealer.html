@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Annealer — a Sudoku that solves itself by cooling</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#11161d; --line:#1f2730; --line2:#2b3540;
+    --ink:#e6edf3; --dim:#7d8b99; --faint:#4a5663;
+    --cool:#4aa3ff; --warm:#ffb454; --hot:#ff5d52; --good:#3fd07f;
+    --clue:#cdd9e5;
+    --mono:'DejaVu Sans Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:var(--mono);-webkit-font-smoothing:antialiased}
+  body{min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    padding:28px 16px 60px}
+  .wrap{width:100%;max-width:880px}
+
+  header{margin-bottom:22px}
+  .eyebrow{font-size:11px;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:10px}
+  h1{font-size:clamp(26px,5vw,40px);font-weight:700;letter-spacing:-.01em;
+    margin:0 0 8px;line-height:1.02}
+  h1 .b{color:var(--cool)}
+  .sub{color:var(--dim);font-size:14px;line-height:1.55;max-width:62ch}
+
+  .stage{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:22px;
+    margin-top:24px;align-items:start}
+  @media(max-width:680px){.stage{grid-template-columns:1fr}}
+
+  /* board */
+  .board{position:relative;aspect-ratio:1;width:100%;
+    background:var(--line);border:2px solid var(--line2);border-radius:6px;
+    display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
+    gap:1px;overflow:hidden}
+  .cell{position:relative;background:var(--panel);display:flex;
+    align-items:center;justify-content:center;font-size:clamp(15px,3.4vw,24px);
+    font-weight:600;color:var(--ink);transition:background .12s linear,color .12s;
+    user-select:none}
+  /* thick 3x3 separators */
+  .cell[data-c="2"],.cell[data-c="5"]{border-right:2px solid var(--line2)}
+  .cell[data-r="2"],.cell[data-r="5"]{border-bottom:2px solid var(--line2)}
+  .cell.clue{color:var(--clue);font-weight:700}
+  .cell.clue::after{content:"";position:absolute;inset:0;
+    box-shadow:inset 0 0 0 1px rgba(205,217,229,.10)}
+  .cell.conflict{color:var(--hot)}
+  .cell .heat{position:absolute;inset:0;opacity:0;pointer-events:none}
+
+  /* right rail */
+  .rail{display:flex;flex-direction:column;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+    padding:14px}
+  .card h2{margin:0 0 10px;font-size:10px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--faint);font-weight:600}
+  .stat{display:flex;justify-content:space-between;align-items:baseline;
+    padding:3px 0;font-size:13px}
+  .stat .k{color:var(--dim)}
+  .stat .v{font-variant-numeric:tabular-nums;font-weight:700}
+  .v.energy{color:var(--warm)} .v.energy.zero{color:var(--good)}
+  .v.temp{color:var(--cool)}
+
+  /* energy trace */
+  .trace{width:100%;height:54px;display:block;margin-top:6px;
+    background:#0c1217;border-radius:4px}
+
+  /* controls */
+  .controls{display:flex;flex-direction:column;gap:8px}
+  button{font-family:var(--mono);font-size:13px;font-weight:600;cursor:pointer;
+    border:1px solid var(--line2);background:#161d25;color:var(--ink);
+    padding:9px 12px;border-radius:5px;transition:border-color .15s,background .15s;
+    text-align:left}
+  button:hover{border-color:var(--cool);background:#1a232c}
+  button:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
+  button.primary{background:var(--cool);color:#06121f;border-color:var(--cool)}
+  button.primary:hover{background:#5fb0ff}
+  button:disabled{opacity:.4;cursor:not-allowed;border-color:var(--line2);background:#161d25}
+  .row{display:flex;gap:8px}
+  .row button{flex:1;text-align:center}
+  .seg{display:flex;border:1px solid var(--line2);border-radius:5px;overflow:hidden}
+  .seg button{flex:1;border:none;border-radius:0;text-align:center;background:#11171e}
+  .seg button.on{background:var(--cool);color:#06121f}
+  .seg button+button{border-left:1px solid var(--line2)}
+
+  .status{font-size:12px;color:var(--dim);min-height:1.4em;line-height:1.4}
+  .status.solved{color:var(--good)} .status.working{color:var(--warm)}
+
+  footer{margin-top:26px;color:var(--faint);font-size:11.5px;line-height:1.6;
+    max-width:70ch}
+  footer b{color:var(--dim);font-weight:600}
+  a{color:var(--cool);text-decoration:none} a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">PerceptionLab · solving by relaxing</div>
+    <h1>The Sudoku that solves itself by&nbsp;<span class="b">cooling down</span></h1>
+    <p class="sub">No search, no backtracking. Every row is kept a valid permutation, the
+      grid is treated as a physical system whose <b style="color:var(--dim)">energy</b> counts
+      column and box conflicts, and the solver swaps cells while a
+      <b style="color:var(--dim)">temperature</b> slowly drops. The puzzle isn't searched for —
+      it's annealed into existence as the lowest-energy state.</p>
+  </header>
+
+  <div class="stage">
+    <div class="board" id="board" aria-label="Sudoku board"></div>
+
+    <div class="rail">
+      <div class="card">
+        <h2>State</h2>
+        <div class="stat"><span class="k">energy</span><span class="v energy" id="energy">—</span></div>
+        <div class="stat"><span class="k">conflicts</span><span class="v" id="conflicts">—</span></div>
+        <div class="stat"><span class="k">temperature</span><span class="v temp" id="temp">—</span></div>
+        <div class="stat"><span class="k">sweeps</span><span class="v" id="sweeps">0</span></div>
+        <div class="stat"><span class="k">restarts</span><span class="v" id="restarts">0</span></div>
+        <canvas class="trace" id="trace" width="220" height="54"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Puzzle</h2>
+        <div class="seg" id="difficulty" role="group" aria-label="Choose difficulty">
+          <button data-d="easy" class="on">Easy</button>
+          <button data-d="medium">Medium</button>
+          <button data-d="hard">Hard</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Run</h2>
+        <div class="controls">
+          <button class="primary" id="solve">Anneal</button>
+          <div class="row">
+            <button id="pause" disabled>Pause</button>
+            <button id="reset">Reset</button>
+          </div>
+        </div>
+        <div class="status" id="status" style="margin-top:10px">Pick a puzzle and press Anneal.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <b>What you're watching.</b> Cells glow hotter the more constraints they violate;
+    the field cools from orange to blue as conflicts vanish. This is a faithful physical
+    relaxation (simulated annealing on a conflict energy), the same "solve by relaxing"
+    idea as Kuramoto/P-KAS oscillator solvers — but with the state space constrained so the
+    relaxation actually converges instead of stalling. Hard puzzles may need several
+    automatic restarts; that's the honest cost of relaxation, not a bug. Full explanation in
+    the README.
+  </footer>
+</div>
+
+<script>
+"use strict";
+// ---- puzzles (0 = empty) -------------------------------------------------
+const PUZZLES = {
+  easy:  "530070000600195000098000060800060003400803001700020006060000280000419005000080079",
+  medium:"000260701680070090190004500820100040004602900050003028009300074040050036703018000",
+  hard:  "000000907000420180000705026100904000050000040000507009920108000034059000507000000",
+};
+
+// ---- state ---------------------------------------------------------------
+let clue = new Int8Array(81);     // given digits (0 = empty)
+let grid = new Int8Array(81);     // current digits 1..9
+let fixed = new Uint8Array(81);   // 1 if clue
+let freeByRow = [];               // editable columns per row
+let energy = 0, temp = 0, sweeps = 0, restarts = 0;
+let running = false, rafId = null, difficulty = "easy";
+let traceData = [];
+
+const boardEl = document.getElementById("board");
+const cells = [];
+
+// build cell DOM once
+for (let i=0;i<81;i++){
+  const r=(i/9)|0, c=i%9;
+  const el=document.createElement("div");
+  el.className="cell"; el.dataset.r=r; el.dataset.c=c;
+  const heat=document.createElement("div"); heat.className="heat";
+  el.appendChild(heat);
+  const span=document.createElement("span"); span.className="d"; el.appendChild(span);
+  boardEl.appendChild(el); cells.push(el);
+}
+
+// ---- helpers -------------------------------------------------------------
+const rnd = (n)=>Math.floor(Math.random()*n);
+
+function loadPuzzle(d){
+  difficulty=d;
+  const s=PUZZLES[d];
+  for(let i=0;i<81;i++){ clue[i]=s.charCodeAt(i)-48; fixed[i]=clue[i]>0?1:0; }
+  seedGrid();
+  sweeps=0; restarts=0; traceData=[];
+  computeEnergy();
+  render(); updateStats();
+  setStatus("Ready. Press Anneal to relax the field.","");
+}
+
+// fill every row with a permutation of 1..9 that respects the clues
+function seedGrid(){
+  freeByRow=[];
+  for(let r=0;r<9;r++){
+    const present=new Set();
+    for(let c=0;c<9;c++) if(fixed[r*9+c]) present.add(clue[r*9+c]);
+    const missing=[]; for(let v=1;v<=9;v++) if(!present.has(v)) missing.push(v);
+    for(let k=missing.length-1;k>0;k--){const j=rnd(k+1);[missing[k],missing[j]]=[missing[j],missing[k]];}
+    const fr=[]; let k=0;
+    for(let c=0;c<9;c++){
+      const idx=r*9+c;
+      if(fixed[idx]) grid[idx]=clue[idx];
+      else { grid[idx]=missing[k++]; fr.push(c); }
+    }
+    freeByRow.push(fr);
+  }
+}
+
+// energy = column conflicts + box conflicts (rows are valid by construction)
+function colConflicts(c){
+  let mask=0,dup=0;
+  for(let r=0;r<9;r++){const b=1<<grid[r*9+c]; if(mask&b)dup++; mask|=b;}
+  return dup;
+}
+function boxConflicts(br,bc){
+  let mask=0,dup=0;
+  for(let dr=0;dr<3;dr++)for(let dc=0;dc<3;dc++){
+    const b=1<<grid[(br*3+dr)*9+(bc*3+dc)]; if(mask&b)dup++; mask|=b;}
+  return dup;
+}
+function computeEnergy(){
+  let e=0;
+  for(let c=0;c<9;c++) e+=colConflicts(c);
+  for(let br=0;br<3;br++)for(let bc=0;bc<3;bc++) e+=boxConflicts(br,bc);
+  energy=e; return e;
+}
+
+// per-cell conflict count, for the heat glow + targeting
+function cellConflicts(){
+  const cc=new Int8Array(81);
+  // columns
+  for(let c=0;c<9;c++){
+    const seen=[[],[],[],[],[],[],[],[],[],[]];
+    for(let r=0;r<9;r++) seen[grid[r*9+c]].push(r*9+c);
+    for(let v=1;v<=9;v++) if(seen[v].length>1) seen[v].forEach(i=>cc[i]++);
+  }
+  // boxes
+  for(let br=0;br<3;br++)for(let bc=0;bc<3;bc++){
+    const seen=[[],[],[],[],[],[],[],[],[],[]];
+    for(let dr=0;dr<3;dr++)for(let dc=0;dc<3;dc++){
+      const i=(br*3+dr)*9+(bc*3+dc); seen[grid[i]].push(i);}
+    for(let v=1;v<=9;v++) if(seen[v].length>1) seen[v].forEach(i=>cc[i]++);
+  }
+  return cc;
+}
+
+// local energy touched by swapping (r,c1)<->(r,c2)
+function localE(r,c1,c2){
+  let e=colConflicts(c1)+colConflicts(c2);
+  e+=boxConflicts((r/3)|0,(c1/3)|0);
+  if(((c2/3)|0)!==((c1/3)|0)) e+=boxConflicts((r/3)|0,(c2/3)|0);
+  return e;
+}
+
+// ---- the annealing relaxation -------------------------------------------
+const SWEEP_MOVES = 220;          // proposals per animation frame
+const T_START = 2.0, T_MIN = 0.16, COOL = 0.00018;
+const PLATEAU = 600;              // sweeps w/o improvement before restart
+let bestE = Infinity, stuck = 0;
+
+function step(){
+  for(let m=0;m<SWEEP_MOVES;m++){
+    const r=rnd(9), fr=freeByRow[r];
+    if(fr.length<2) continue;
+    let a=rnd(fr.length), b=rnd(fr.length);
+    if(a===b) continue;
+    const c1=fr[a], c2=fr[b];
+    const before=localE(r,c1,c2);
+    const i1=r*9+c1, i2=r*9+c2;
+    const t=grid[i1]; grid[i1]=grid[i2]; grid[i2]=t;     // swap
+    const after=localE(r,c1,c2);
+    const dE=after-before;
+    if(dE<=0 || Math.random()<Math.exp(-dE/temp)){
+      energy+=dE;
+    } else {
+      const u=grid[i1]; grid[i1]=grid[i2]; grid[i2]=u;    // revert
+    }
+  }
+  sweeps++;
+  temp=Math.max(T_MIN, temp - COOL*SWEEP_MOVES);
+
+  if(energy<bestE){bestE=energy; stuck=0;} else {stuck++;}
+  if(energy>0 && stuck>PLATEAU){                          // restart: re-seed + reheat
+    restarts++; stuck=0; bestE=Infinity; temp=T_START; seedGrid(); computeEnergy();
+  }
+}
+
+function loop(){
+  if(!running) return;
+  step();
+  traceData.push(energy); if(traceData.length>220) traceData.shift();
+  render(); updateStats();
+  if(energy===0){ finishSolved(); return; }
+  rafId=requestAnimationFrame(loop);
+}
+
+function finishSolved(){
+  running=false;
+  document.getElementById("solve").disabled=false;
+  document.getElementById("pause").disabled=true;
+  render(); updateStats();
+  setStatus("Solved. Energy reached zero — the field settled into a valid grid.","solved");
+}
+
+// ---- rendering -----------------------------------------------------------
+function heatColor(n){
+  // 0 conflicts -> transparent; rising -> warm -> hot
+  if(n<=0) return "rgba(0,0,0,0)";
+  if(n===1) return "rgba(255,180,84,0.16)";
+  if(n===2) return "rgba(255,140,70,0.26)";
+  return "rgba(255,93,82,0.34)";
+}
+function render(){
+  const cc=cellConflicts();
+  for(let i=0;i<81;i++){
+    const el=cells[i];
+    const span=el.querySelector(".d");
+    span.textContent = grid[i] ? grid[i] : "";
+    el.classList.toggle("clue", !!fixed[i]);
+    const conf = cc[i] && !fixed[i];
+    el.classList.toggle("conflict", !!conf);
+    el.querySelector(".heat").style.background = fixed[i] ? "rgba(0,0,0,0)" : heatColor(cc[i]);
+    el.querySelector(".heat").style.opacity = 1;
+  }
+  drawTrace();
+}
+
+function drawTrace(){
+  const cv=document.getElementById("trace"), ctx=cv.getContext("2d");
+  const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  if(traceData.length<2) return;
+  const max=Math.max(8,...traceData);
+  ctx.beginPath();
+  for(let i=0;i<traceData.length;i++){
+    const x=i/(220-1)*W;
+    const y=H-3-(traceData[i]/max)*(H-6);
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  }
+  ctx.strokeStyle=energy===0?"#3fd07f":"#ffb454";
+  ctx.lineWidth=1.5; ctx.stroke();
+}
+
+function updateStats(){
+  const eEl=document.getElementById("energy");
+  eEl.textContent=energy; eEl.classList.toggle("zero",energy===0);
+  document.getElementById("conflicts").textContent=energy;
+  document.getElementById("temp").textContent=temp.toFixed(2);
+  document.getElementById("sweeps").textContent=sweeps.toLocaleString();
+  document.getElementById("restarts").textContent=restarts;
+}
+
+function setStatus(msg,cls){
+  const s=document.getElementById("status");
+  s.textContent=msg; s.className="status"+(cls?(" "+cls):"");
+}
+
+// ---- controls ------------------------------------------------------------
+document.getElementById("solve").addEventListener("click",()=>{
+  if(running) return;
+  if(energy===0){ seedGrid(); computeEnergy(); }   // re-run from fresh seed
+  running=true; temp=T_START; bestE=Infinity; stuck=0;
+  document.getElementById("solve").disabled=true;
+  document.getElementById("pause").disabled=false;
+  setStatus("Annealing… watch the energy fall as the field cools.","working");
+  loop();
+});
+document.getElementById("pause").addEventListener("click",()=>{
+  running=!running;
+  document.getElementById("pause").textContent=running?"Pause":"Resume";
+  if(running){ loop(); setStatus("Annealing…","working"); }
+  else setStatus("Paused.","");
+});
+document.getElementById("reset").addEventListener("click",()=>{
+  running=false; cancelAnimationFrame(rafId);
+  document.getElementById("solve").disabled=false;
+  document.getElementById("pause").disabled=true;
+  document.getElementById("pause").textContent="Pause";
+  loadPuzzle(difficulty);
+});
+document.querySelectorAll("#difficulty button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    if(running) return;
+    document.querySelectorAll("#difficulty button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    document.getElementById("pause").textContent="Pause";
+    document.getElementById("pause").disabled=true;
+    document.getElementById("solve").disabled=false;
+    loadPuzzle(b.dataset.d);
+  });
+});
+
+// respect reduced motion: still works, just renders less often handled by rAF
+loadPuzzle("easy");
+</script>
+</body>
+</html>
